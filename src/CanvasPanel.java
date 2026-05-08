@@ -3,6 +3,8 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 public class CanvasPanel extends JPanel{
     private BufferedImage image;
@@ -15,6 +17,12 @@ public class CanvasPanel extends JPanel{
     private float opacity = 1.0f;
     private int startX;
     private int startY;
+    private final Deque<BufferedImage> undoStack = new ArrayDeque<>();
+    private final Deque<BufferedImage> redoStack = new ArrayDeque<>();
+
+    private void restoreImage(BufferedImage saved) {
+        g2d.drawImage(saved, 0, 0, null);
+    }
 
     public void setCurrentTool(Tool t) {
         currentTool = t;
@@ -56,6 +64,9 @@ public class CanvasPanel extends JPanel{
                 repaint();
                 startX = e.getX();
                 startY = e.getY();
+                if (currentTool == Tool.LINE   || currentTool == Tool.RECTANGLE || currentTool == Tool.CIRCLE) {
+                    scratch = copyImage(image);
+                }
             }
 
             @Override
@@ -70,6 +81,7 @@ public class CanvasPanel extends JPanel{
                     case LINE:
                     case RECTANGLE:
                     case CIRCLE:
+                        restoreImage(scratch);
                         drawShape(startX, startY, e.getX(), e.getY());
                         break;
                 }
@@ -101,5 +113,23 @@ public class CanvasPanel extends JPanel{
                 g2d.drawOval(x,y,w,h);
                 break;
         }
+    }
+
+    private void saveSnapshot() {
+        undoStack.push(copyImage(image));
+        redoStack.clear();
+    }
+
+    public void redo() {
+        if (redoStack.isEmpty()) return;
+        undoStack.push(copyImage(image));
+        restoreImage(redoStack.pop());
+        repaint();
+    }
+
+    private BufferedImage copyImage(BufferedImage src) {
+        BufferedImage copy = new BufferedImage(src.getWidth(), src.getHeight(), src.getType());
+        copy.createGraphics().drawImage(src, 0, 0, null);
+        return copy;
     }
 }
