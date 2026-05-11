@@ -1,4 +1,5 @@
 import javax.swing.*;
+import java.awt.*;
 
 public class ToolPanel extends JPanel {
     private CanvasPanel canvas;
@@ -13,5 +14,13 @@ public class ToolPanel extends JPanel {
         JButton btn = new JButton(label);
         btn.addActionListener(e -> canvas.setCurrentTool(tool));
         return btn;
+    }
+
+    private JPanel buildToolButtons(){
+        JPanel p = new JPanel(new GridLayout(3, 2, 2, 2));
+        p.add(toolBtn("Brush", Tool.BRUSH));
+        p.add(toolBtn("Eraser", Tool.ERASER));
+        p.add(toolBtn("Line", Tool.LINE));
+        return p;
     }
 }
