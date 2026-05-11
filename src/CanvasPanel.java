@@ -120,6 +120,13 @@ public class CanvasPanel extends JPanel{
         redoStack.clear();
     }
 
+    public void undo() {
+        if (undoStack.isEmpty()) return;
+        redoStack.push(copyImage(image));
+        restoreImage(undoStack.pop());
+        repaint();
+    }
+
     public void redo() {
         if (redoStack.isEmpty()) return;
         undoStack.push(copyImage(image));
