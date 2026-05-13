@@ -1,16 +1,39 @@
 import javax.swing.*;
+import javax.swing.event.ChangeEvent;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 public class ToolPanel extends JPanel {
-    private CanvasPanel canvas;
+    private final CanvasPanel canvas;
+    // Colour swatches – matches the wireframe (4 cols × 5 rows)
+    private static final Color[] PALETTE = {Color.BLACK,new Color(128,128,128), new Color(139,0,0), new Color(255,140,0), Color.YELLOW, new Color(0,128,0), Color.CYAN, Color.BLUE, new Color(128,0,128), new Color(255,105,180), new Color(139,69,19), new Color(192,192,192), Color.RED, Color.GREEN, new Color(0,191,255), new Color(75,0,130), new Color(154,205,50), new Color(255,228,196), new Color(216,191,216), new Color(0,100,0)};
+    private JLabel  primarySwatch;
+    private JLabel  secondarySwatch;
+    private JLabel  sizeValueLabel;
+    private JLabel  opacityValueLabel;
 
     public ToolPanel(CanvasPanel canvas) {
         this.canvas = canvas;
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, Color.GRAY));
+        setBackground(new Color(240, 240, 240));
         setPreferredSize(new Dimension(160, 0));
+
         add(buildToolButtons());
+        add(Box.createVerticalStrut(4));
+        add(buildPalette());
+        add(Box.createVerticalStrut(4));
+        add(buildColorDisplay());
+        add(Box.createVerticalStrut(8));
         add(buildSizeSlider());
+        add(Box.createVerticalStrut(4));
+        add(buildOpacitySlider());
+        add(Box.createVerticalStrut(4));
+        add(buildFillCheckbox());
+        add(Box.createVerticalGlue());
     }
+
 
     private JButton toolBtn(String label, Tool tool) {
         JButton btn = new JButton(label);
@@ -18,12 +41,30 @@ public class ToolPanel extends JPanel {
         return btn;
     }
 
-    private JPanel buildToolButtons(){
-        JPanel p = new JPanel(new GridLayout(3, 2, 2, 2));
-        p.add(toolBtn("Brush", Tool.BRUSH));
-        p.add(toolBtn("Eraser", Tool.ERASER));
-        p.add(toolBtn("Line", Tool.LINE));
-        return p;
+    private JPanel buildToolButtons() {
+        JPanel panel = new JPanel(new GridLayout(3, 2, 2, 2));
+        panel.setBorder(BorderFactory.createTitledBorder("Tools"));
+        panel.setOpaque(false);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
+        panel.add(toolButton("Brush",   Tool.BRUSH,     "🖌"));
+        panel.add(toolButton("Eraser",  Tool.ERASER,    "🧽"));
+        panel.add(toolButton("Circle",  Tool.CIRCLE,    "○"));
+        panel.add(toolButton("Rect",    Tool.RECTANGLE, "□"));
+        panel.add(toolButton("Line",    Tool.LINE,      "—"));
+
+        JButton clearBtn = new JButton("🗑");
+        clearBtn.setToolTipText("Clear canvas");
+        clearBtn.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 18));
+        clearBtn.setMargin(new Insets(2, 2, 2, 2));
+        clearBtn.addActionListener(e -> {
+            int choice = JOptionPane.showConfirmDialog(
+                    canvas, "Clear the entire canvas?", "Clear",
+                    JOptionPane.YES_NO_OPTION);
+            if (choice == JOptionPane.YES_OPTION) canvas.clearCanvas();
+        });
+        panel.add(clearBtn);
+
+        return panel;
     }
 
     private JPanel buildSizeSlider(){
@@ -37,5 +78,69 @@ public class ToolPanel extends JPanel {
         p.add(label);
         p.add(slider);
         return p;
+    }
+
+
+
+    private JButton toolButton(String tooltip, Tool tool, String label) {
+        JButton btn = new JButton(label);
+        btn.setToolTipText(tooltip);
+        btn.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 20));
+        btn.setMargin(new Insets(2, 2, 2, 2));
+        btn.addActionListener(e -> canvas.setCurrentTool(tool));
+        return btn;
+    }
+
+    private JPanel buildPalette() {
+        JPanel panel = new JPanel(new GridLayout(5, 4, 2, 2));
+        panel.setBorder(BorderFactory.createTitledBorder("Colour"));
+        panel.setOpaque(false);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 140));
+
+        for (Color c : PALETTE) {
+            JLabel swatch = new JLabel();
+            swatch.setBackground(c);
+            swatch.setOpaque(true);
+            swatch.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
+            swatch.setPreferredSize(new Dimension(24, 18));
+            swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            swatch.setToolTipText(colorHex(c));
+
+            swatch.addMouseListener(new MouseAdapter() {
+                @Override public void mouseClicked(MouseEvent e) {
+                    if (SwingUtilities.isRightMouseButton(e)) {
+                        canvas.setSecondaryColor(c);
+                    } else {
+                        canvas.setPrimaryColor(c);
+                    }
+                    refreshColorDisplay();
+                }
+            });
+            panel.add(swatch);
+        }
+        return panel;
+    }
+
+    private JPanel buildColorDisplay() {
+        JPanel outer = new JPanel(null);
+        outer.setOpaque(false);
+        outer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 64));
+        outer.setPreferredSize(new Dimension(0, 64));
+
+        secondarySwatch = colorSwatch(canvas.getSecondaryColor(), false);
+        secondarySwatch.setBounds(28, 22, 32, 32);
+        outer.add(secondarySwatch);
+
+        primarySwatch = colorSwatch(canvas.getPrimaryColor(), true);
+        primarySwatch.setBounds(8, 8, 32, 32);
+        outer.add(primarySwatch);
+
+        JLabel lbl = new JLabel("/* Primary & secondary colors */");
+        lbl.setFont(new Font("Monospaced", Font.ITALIC, 9));
+        lbl.setForeground(Color.GRAY);
+        lbl.setBounds(4, 54, 150, 12);
+        outer.add(lbl);
+
+        return outer;
     }
 }
