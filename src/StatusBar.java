@@ -16,9 +16,9 @@ public class StatusBar extends JPanel {
         setPreferredSize(new Dimension(0, 24));
 
         positionLabel = label("X: 0000  Y: 0000");
-        canvasLabel   = label("Canvas: 800×600");
-        zoomLabel     = label("Zoom: 100%");
-        undoLabel     = label("Undo: ✓/—    Redo: ✓/—");
+        canvasLabel = label("Canvas: 800×600");
+        zoomLabel = label("Zoom: 100%");
+        undoLabel = label("Undo: ✓/—    Redo: ✓/—");
 
         add(positionLabel);
         add(separator());
