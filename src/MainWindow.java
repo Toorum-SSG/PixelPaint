@@ -1,7 +1,10 @@
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.io.File;
+import java.io.IOException;
 
 public class MainWindow extends JFrame{
     private CanvasPanel canvas;
@@ -11,11 +14,11 @@ public class MainWindow extends JFrame{
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setSize(1100, 750);
         setLocationRelativeTo(null);
+        setJMenuBar(buildMenuBar());
         canvas = new CanvasPanel(800,600);
         JScrollPane scrollPane = new JScrollPane(canvas);
         scrollPane.getViewport().setBackground(new Color(180, 180, 180));
         add(scrollPane, BorderLayout.CENTER);
-        setJMenuBar(buildMenuBar());
     }
 
     private JMenuBar buildMenuBar() {
@@ -51,8 +54,39 @@ public class MainWindow extends JFrame{
         return menu;
     }
 
-    private void saveFile(){}
+    private void saveFile(){
+        JFileChooser chooser = new JFileChooser();
+        int result = chooser.showSaveDialog(this);
 
-    private void openFile(){}
+        if (result == JFileChooser.APPROVE_OPTION) {
+            File file = chooser.getSelectedFile();
+
+            // Ensure .png extension
+            if (!file.getName().endsWith(".png")) {
+                file = new File(file.getPath() + ".png");
+            }
+
+            try {
+                ImageIO.write(canvas.getImage(), "PNG", file);
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, "Save failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void openFile(){
+        JFileChooser chooser = new JFileChooser();
+        if (chooser.showOpenDialog(this)
+                == JFileChooser.APPROVE_OPTION) {
+            try {
+                java.awt.image.BufferedImage img =
+                        ImageIO.read(chooser.getSelectedFile());
+                canvas.getImage().createGraphics()
+                        .drawImage(img, 0, 0, null);
+                canvas.repaint();
+            } catch (IOException ex) { /* show error */ }
+        }
+    }
+
 
 }

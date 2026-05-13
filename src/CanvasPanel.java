@@ -24,6 +24,10 @@ public class CanvasPanel extends JPanel{
         g2d.drawImage(saved, 0, 0, null);
     }
 
+    public BufferedImage getImage() {
+        return image;
+    }
+
     public void setCurrentTool(Tool t) {
         currentTool = t;
     }
