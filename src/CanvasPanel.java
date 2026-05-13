@@ -138,7 +138,6 @@ public class CanvasPanel extends JPanel {
         Color color;
 
         if (currentTool == Tool.ERASER) {
-            // Eraser always paints white (background)
             color = Color.WHITE;
             g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
         } else {
@@ -193,5 +192,98 @@ public class CanvasPanel extends JPanel {
         repaint();
     }
 
-    
+    public void resizeCanvas(int w, int h) {
+        undoStack.clear();
+        redoStack.clear();
+        initImage(w, h);
+        setPreferredSize(new Dimension(w, h));
+        revalidate();
+        repaint();
+    }
+
+    public void zoomIn()    {
+        zoomFactor = Math.min(zoomFactor + 0.25, 8.0); updateZoom();
+    }
+
+    public void resetZoom() {
+        zoomFactor = 1.0; updateZoom();
+    }
+
+    private void updateZoom() {
+        int w = (int)(image.getWidth()  * zoomFactor);
+        int h = (int)(image.getHeight() * zoomFactor);
+        setPreferredSize(new Dimension(w, h));
+        revalidate();
+        repaint();
+    }
+
+    private int screenToCanvas(int screenCoord) {
+        return (int)(screenCoord / zoomFactor);
+    }
+
+    public double getZoomFactor() { return zoomFactor; }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        int w = (int)(image.getWidth()  * zoomFactor);
+        int h = (int)(image.getHeight() * zoomFactor);
+        g.drawImage(image, 0, 0, w, h, null);
+    }
+
+    public BufferedImage getImage(){
+        return image;
+    }
+    public Color getPrimaryColor(){
+        return primaryColor;
+    }
+
+    public Color getSecondaryColor(){
+        return secondaryColor;
+    }
+
+    public void setPrimaryColor(Color c){
+        primaryColor = c;
+    }
+
+    public void setSecondaryColor(Color c){
+        secondaryColor = c;
+    }
+
+    public int getBrushSize(){
+        return brushSize;
+    }
+
+    public void setBrushSize(int s){
+        brushSize = s;
+    }
+
+    public float getOpacity() {
+        return opacity;
+    }
+
+    public void setOpacity(float o){
+        opacity = o;
+    }
+
+    public boolean isFill(){
+        return fill;
+    }
+
+    public void setFill(boolean f){
+        fill = f;
+    }
+
+    public Tool getCurrentTool(){
+        return currentTool;
+    }
+
+    public void setCurrentTool(Tool t) {
+        currentTool = t;
+    }
+
+    public void setMaxUndoSteps(int s){
+        maxUndoSteps = s;
+    }
+
 }
