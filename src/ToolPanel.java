@@ -143,4 +143,72 @@ public class ToolPanel extends JPanel {
 
         return outer;
     }
+
+    private JLabel colorSwatch(Color c, boolean primary) {
+        JLabel lbl = new JLabel();
+        lbl.setBackground(c);
+        lbl.setOpaque(true);
+        lbl.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+        lbl.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        lbl.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                Color chosen = JColorChooser.showDialog(canvas,
+                        primary ? "Choose primary colour" : "Choose secondary colour",
+                        primary ? canvas.getPrimaryColor() : canvas.getSecondaryColor());
+                if (chosen != null) {
+                    if (primary) canvas.setPrimaryColor(chosen);
+                    else         canvas.setSecondaryColor(chosen);
+                    refreshColorDisplay();
+                }
+            }
+        });
+        return lbl;
+    }
+
+    public void refreshColorDisplay() {
+        primarySwatch.setBackground(canvas.getPrimaryColor());
+        secondarySwatch.setBackground(canvas.getSecondaryColor());
+    }
+
+    private JPanel buildOpacitySlider() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+        panel.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 6));
+
+        int initPct = Math.round(canvas.getOpacity() * 100);
+        opacityValueLabel = new JLabel("Opacity: " + initPct);
+        opacityValueLabel.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        opacityValueLabel.setAlignmentX(LEFT_ALIGNMENT);
+
+        JSlider slider = new JSlider(1, 100, initPct);
+        slider.setOpaque(false);
+        slider.setAlignmentX(LEFT_ALIGNMENT);
+        slider.addChangeListener((ChangeEvent e) -> {
+            float opacity = slider.getValue() / 100.0f;
+            canvas.setOpacity(opacity);
+            opacityValueLabel.setText("Opacity: " + slider.getValue());
+        });
+
+        panel.add(opacityValueLabel);
+        panel.add(slider);
+        return panel;
+    }
+
+    private JPanel buildFillCheckbox() {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        panel.setOpaque(false);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+
+        JCheckBox fillBox = new JCheckBox("Fill", canvas.isFill());
+        fillBox.setOpaque(false);
+        fillBox.addActionListener(e -> canvas.setFill(fillBox.isSelected()));
+        panel.add(fillBox);
+        return panel;
+    }
+
+    private static String colorHex(Color c) {
+        return String.format("#%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue());
+    }
 }
