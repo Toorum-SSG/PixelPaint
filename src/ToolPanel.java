@@ -6,7 +6,6 @@ import java.awt.event.MouseEvent;
 
 public class ToolPanel extends JPanel {
     private final CanvasPanel canvas;
-    // Colour swatches – matches the wireframe (4 cols × 5 rows)
     private static final Color[] PALETTE = {Color.BLACK,new Color(128,128,128), new Color(139,0,0), new Color(255,140,0), Color.YELLOW, new Color(0,128,0), Color.CYAN, Color.BLUE, new Color(128,0,128), new Color(255,105,180), new Color(139,69,19), new Color(192,192,192), Color.RED, Color.GREEN, new Color(0,191,255), new Color(75,0,130), new Color(154,205,50), new Color(255,228,196), new Color(216,191,216), new Color(0,100,0)};
     private JLabel  primarySwatch;
     private JLabel  secondarySwatch;
@@ -30,56 +29,8 @@ public class ToolPanel extends JPanel {
         add(Box.createVerticalStrut(4));
         add(buildOpacitySlider());
         add(Box.createVerticalStrut(4));
-        add(buildFillCheckbox());
         add(Box.createVerticalGlue());
     }
-
-
-    private JButton toolBtn(String label, Tool tool) {
-        JButton btn = new JButton(label);
-        btn.addActionListener(e -> canvas.setCurrentTool(tool));
-        return btn;
-    }
-
-    private JPanel buildToolButtons() {
-        JPanel panel = new JPanel(new GridLayout(3, 2, 2, 2));
-        panel.setBorder(BorderFactory.createTitledBorder("Tools"));
-        panel.setOpaque(false);
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
-        panel.add(toolButton("Brush",   Tool.BRUSH,     "🖌"));
-        panel.add(toolButton("Eraser",  Tool.ERASER,    "🧽"));
-        panel.add(toolButton("Circle",  Tool.CIRCLE,    "○"));
-        panel.add(toolButton("Rect",    Tool.RECTANGLE, "□"));
-        panel.add(toolButton("Line",    Tool.LINE,      "—"));
-
-        JButton clearBtn = new JButton("🗑");
-        clearBtn.setToolTipText("Clear canvas");
-        clearBtn.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 18));
-        clearBtn.setMargin(new Insets(2, 2, 2, 2));
-        clearBtn.addActionListener(e -> {
-            int choice = JOptionPane.showConfirmDialog(
-                    canvas, "Clear the entire canvas?", "Clear",
-                    JOptionPane.YES_NO_OPTION);
-            if (choice == JOptionPane.YES_OPTION) canvas.clearCanvas();
-        });
-        panel.add(clearBtn);
-
-        return panel;
-    }
-
-    private JPanel buildSizeSlider(){
-        JPanel p = new JPanel();
-        JLabel label = new JLabel("Size: 10");
-        JSlider slider = new JSlider(1, 60, 10);
-        slider.addChangeListener(e -> {
-            canvas.setBrushSize(slider.getValue());
-            label.setText("Size: " + slider.getValue());
-        });
-        p.add(label);
-        p.add(slider);
-        return p;
-    }
-
 
 
     private JButton toolButton(String tooltip, Tool tool, String label) {
@@ -91,12 +42,55 @@ public class ToolPanel extends JPanel {
         return btn;
     }
 
+    private JPanel buildToolButtons() {
+        JPanel panel = new JPanel(new GridLayout(4, 2, 2, 2));
+        panel.setBorder(BorderFactory.createTitledBorder("Tools"));
+        panel.setOpaque(false);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE,160));
+        panel.add(toolButton("Brush",Tool.BRUSH,"🖌"));
+        panel.add(toolButton("Eraser",Tool.ERASER,"🧽"));
+        panel.add(toolButton("Circle",Tool.CIRCLE,"○"));
+        panel.add(toolButton("Rect",Tool.RECTANGLE,"□"));
+        panel.add(toolButton("Line",Tool.LINE,"—"));
+        panel.add(toolButton("Fill", Tool.FILL,"🧺"));
+        JButton clearBtn = new JButton("🗑");
+        clearBtn.setToolTipText("Clear canvas");
+        clearBtn.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 18));
+        clearBtn.setMargin(new Insets(2, 2, 2, 2));
+        clearBtn.addActionListener(e -> {
+            int choice = JOptionPane.showConfirmDialog(canvas, "Clear the entire canvas?", "Clear", JOptionPane.YES_NO_OPTION);
+            if (choice == JOptionPane.YES_OPTION) canvas.clearCanvas();
+        });
+        panel.add(clearBtn);
+        return panel;
+    }
+
+    private JPanel buildSizeSlider(){
+        JPanel p = new JPanel();
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        p.setOpaque(false);
+        p.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+        p.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 6));
+        sizeValueLabel = new JLabel("Size: " + canvas.getBrushSize());
+        sizeValueLabel.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        sizeValueLabel.setAlignmentX(LEFT_ALIGNMENT);
+        JSlider slider = new JSlider(1, 60, canvas.getBrushSize());
+        slider.setOpaque(false);
+        slider.setAlignmentX(LEFT_ALIGNMENT);
+        slider.addChangeListener(e -> {
+            canvas.setBrushSize(slider.getValue());
+            sizeValueLabel.setText("Size: " + slider.getValue());
+        });
+        p.add(sizeValueLabel);
+        p.add(slider);
+        return p;
+    }
+
     private JPanel buildPalette() {
         JPanel panel = new JPanel(new GridLayout(5, 4, 2, 2));
         panel.setBorder(BorderFactory.createTitledBorder("Colour"));
         panel.setOpaque(false);
         panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 140));
-
         for (Color c : PALETTE) {
             JLabel swatch = new JLabel();
             swatch.setBackground(c);
@@ -105,7 +99,6 @@ public class ToolPanel extends JPanel {
             swatch.setPreferredSize(new Dimension(24, 18));
             swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             swatch.setToolTipText(colorHex(c));
-
             swatch.addMouseListener(new MouseAdapter() {
                 @Override public void mouseClicked(MouseEvent e) {
                     if (SwingUtilities.isRightMouseButton(e)) {
@@ -126,21 +119,17 @@ public class ToolPanel extends JPanel {
         outer.setOpaque(false);
         outer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 64));
         outer.setPreferredSize(new Dimension(0, 64));
-
         secondarySwatch = colorSwatch(canvas.getSecondaryColor(), false);
         secondarySwatch.setBounds(28, 22, 32, 32);
         outer.add(secondarySwatch);
-
         primarySwatch = colorSwatch(canvas.getPrimaryColor(), true);
         primarySwatch.setBounds(8, 8, 32, 32);
         outer.add(primarySwatch);
-
         JLabel lbl = new JLabel("/* Primary & secondary colors */");
         lbl.setFont(new Font("Monospaced", Font.ITALIC, 9));
         lbl.setForeground(Color.GRAY);
         lbl.setBounds(4, 54, 150, 12);
         outer.add(lbl);
-
         return outer;
     }
 
@@ -176,12 +165,10 @@ public class ToolPanel extends JPanel {
         panel.setOpaque(false);
         panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
         panel.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 6));
-
         int initPct = Math.round(canvas.getOpacity() * 100);
         opacityValueLabel = new JLabel("Opacity: " + initPct);
         opacityValueLabel.setFont(new Font("Monospaced", Font.PLAIN, 11));
         opacityValueLabel.setAlignmentX(LEFT_ALIGNMENT);
-
         JSlider slider = new JSlider(1, 100, initPct);
         slider.setOpaque(false);
         slider.setAlignmentX(LEFT_ALIGNMENT);
@@ -190,21 +177,8 @@ public class ToolPanel extends JPanel {
             canvas.setOpacity(opacity);
             opacityValueLabel.setText("Opacity: " + slider.getValue());
         });
-
         panel.add(opacityValueLabel);
         panel.add(slider);
-        return panel;
-    }
-
-    private JPanel buildFillCheckbox() {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        panel.setOpaque(false);
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-
-        JCheckBox fillBox = new JCheckBox("Fill", canvas.isFill());
-        fillBox.setOpaque(false);
-        fillBox.addActionListener(e -> canvas.setFill(fillBox.isSelected()));
-        panel.add(fillBox);
         return panel;
     }
 

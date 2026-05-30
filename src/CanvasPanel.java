@@ -4,29 +4,43 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.LinkedList;
+import java.util.Queue;
 
 public class CanvasPanel extends JPanel {
-    private BufferedImage image;          // current drawing surface
-    private Graphics2D    g2d;            // graphics context for the image
+    private BufferedImage image;
+    private Graphics2D g2d;
     private final Deque<BufferedImage> undoStack = new ArrayDeque<>();
     private final Deque<BufferedImage> redoStack = new ArrayDeque<>();
     private int maxUndoSteps = 30;
-    private Tool    currentTool     = Tool.BRUSH;
-    private Color   primaryColor    = Color.BLACK;
-    private Color   secondaryColor  = Color.WHITE;
-    private int     brushSize       = 10;
-    private float   opacity         = 1.0f;
-    private boolean fill            = false;
+    private Tool currentTool = Tool.BRUSH;
+    private Color primaryColor = Color.BLACK;
+    private Color secondaryColor = Color.WHITE;
+    private int brushSize = 10;
+    private float opacity = 1.0f;
     private double zoomFactor = 1.0;
+    private static final double ZOOM_MIN = 0.1;
+    private static final double ZOOM_MAX = 16.0;
+    private static final double ZOOM_STEP = 0.12;
+    private JScrollPane scrollPane;
+    private boolean fill = false;
     private int lastX, lastY;
     private int startX, startY;
     private BufferedImage shapeScratch;
+    private boolean panActive = false;
+    private int panAnchorX, panAnchorY;
+    private int panScrollX, panScrollY;
 
     public CanvasPanel(int width, int height) {
         setBackground(Color.LIGHT_GRAY);
         setPreferredSize(new Dimension(width, height));
         initImage(width, height);
-        addMouseListeners();
+        addDravingListeners();
+        addZoomListener();
+    }
+
+    public void setScrollPane(JScrollPane sp){
+        this.scrollPane = sp;
     }
 
     private void initImage(int w, int h) {
@@ -42,28 +56,79 @@ public class CanvasPanel extends JPanel {
         return g;
     }
 
-    private void addMouseListeners() {
+    private void addZoomListener() {
+        addMouseWheelListener(e -> {
+            if (!e.isControlDown()) return;
+            int mouseX = e.getX();
+            int mouseY = e.getY();
+            double imgX = mouseX / zoomFactor;
+            double imgY = mouseY / zoomFactor;
+            double delta = -e.getPreciseWheelRotation() * ZOOM_STEP;
+            zoomFactor = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomFactor + delta));
+            int newW = (int)(image.getWidth()  * zoomFactor);
+            int newH = (int)(image.getHeight() * zoomFactor);
+            setPreferredSize(new Dimension(newW, newH));
+            revalidate();
+            if (scrollPane != null) {
+                int scrollX = (int)(imgX * zoomFactor) - mouseX;
+                int scrollY = (int)(imgY * zoomFactor) - mouseY;
+                scrollX = Math.max(0, Math.min(newW, scrollX));
+                scrollY = Math.max(0, Math.min(newH, scrollY));
+                scrollPane.getHorizontalScrollBar().setValue(scrollX);
+                scrollPane.getVerticalScrollBar().setValue(scrollY);
+            }
+            repaint();
+        });
+    }
+
+
+    private void addDravingListeners() {
         MouseAdapter adapter = new MouseAdapter() {
-            @Override public void mousePressed(MouseEvent e) {
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (SwingUtilities.isMiddleMouseButton(e)) {
+                    panActive  = true;
+                    panAnchorX = e.getXOnScreen();
+                    panAnchorY = e.getYOnScreen();
+                    if (scrollPane != null) {
+                        panScrollX = scrollPane.getHorizontalScrollBar().getValue();
+                        panScrollY = scrollPane.getVerticalScrollBar().getValue();
+                    }
+                    setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+                    return;
+                }
+
                 int x = screenToCanvas(e.getX());
                 int y = screenToCanvas(e.getY());
-                lastX = x; lastY = y;
-                startX = x; startY = y;
-
-                // For shapes/line: save snapshot so we can redraw cleanly while dragging
+                lastX = x;
+                lastY = y;
+                startX = x;
+                startY = y;
                 if (currentTool == Tool.LINE || currentTool == Tool.CIRCLE || currentTool == Tool.RECTANGLE) {
                     shapeScratch = copyImage(image);
+                } else if (currentTool == Tool.FILL){
+                    Color fc = SwingUtilities.isRightMouseButton(e) ? secondaryColor : primaryColor;
+                    saveSnapshot();
                 } else {
-                    saveUndoSnapshot();
+                    saveSnapshot();
                     drawPoint(x, y, e);
+                    repaint();
                 }
-                repaint();
             }
 
             @Override public void mouseDragged(MouseEvent e) {
+                if (panActive) {
+                    if (scrollPane != null){
+                        int dx = e.getXOnScreen() - panAnchorX;
+                        int dy = e.getYOnScreen() - panAnchorY;
+                        scrollPane.getHorizontalScrollBar().setValue(panScrollX - dx);
+                        scrollPane.getVerticalScrollBar().setValue(panScrollY - dy);
+                    }
+                    return;
+                }
                 int x = screenToCanvas(e.getX());
                 int y = screenToCanvas(e.getY());
-
                 switch (currentTool) {
                     case BRUSH:
                     case ERASER:
@@ -71,27 +136,33 @@ public class CanvasPanel extends JPanel {
                         lastX = x; lastY = y;
                         break;
                     case LINE:
-                    case CIRCLE:
                     case RECTANGLE:
-                        // Restore pre-drag snapshot, then draw preview
+                    case CIRCLE:
                         restoreImage(shapeScratch);
                         drawShape(startX, startY, x, y, e);
+                        repaint();
+                        break;
+                    case FILL:
                         break;
                 }
-                repaint();
             }
 
-            @Override public void mouseReleased(MouseEvent e) {
-                int x = screenToCanvas(e.getX());
-                int y = screenToCanvas(e.getY());
-
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (panActive && SwingUtilities.isMiddleMouseButton(e)){
+                    panActive = false;
+                    setCursor(Cursor.getDefaultCursor());
+                    return;
+                }
                 if (currentTool == Tool.LINE || currentTool == Tool.CIRCLE || currentTool == Tool.RECTANGLE) {
-                    saveUndoSnapshot();           // save BEFORE final draw
-                    restoreImage(shapeScratch);   // roll back preview
+                    int x = screenToCanvas(e.getX());
+                    int y = screenToCanvas(e.getY());
+                    saveSnapshot();
+                    restoreImage(shapeScratch);
                     drawShape(startX, startY, x, y, e);
+                    shapeScratch = null;
                     repaint();
                 }
-                shapeScratch = null;
             }
         };
 
@@ -112,45 +183,64 @@ public class CanvasPanel extends JPanel {
 
     private void drawShape(int x1, int y1, int x2, int y2, MouseEvent e) {
         setupG2D(e);
+        g2d.setStroke(new BasicStroke(brushSize));
         int x = Math.min(x1, x2);
         int y = Math.min(y1, y2);
         int w = Math.abs(x2 - x1);
         int h = Math.abs(y2 - y1);
-        g2d.setStroke(new BasicStroke(brushSize));
-
         switch (currentTool) {
             case LINE:
                 g2d.drawLine(x1, y1, x2, y2);
                 break;
             case RECTANGLE:
-                if (fill) g2d.fillRect(x, y, w, h);
-                else      g2d.drawRect(x, y, w, h);
+                g2d.drawRect(x, y, w, h);
                 break;
             case CIRCLE:
-                if (fill) g2d.fillOval(x, y, w, h);
-                else      g2d.drawOval(x, y, w, h);
+                g2d.drawOval(x, y, w, h);
                 break;
         }
     }
 
     private void setupG2D(MouseEvent e) {
-        boolean rightButton = SwingUtilities.isRightMouseButton(e);
-        Color color;
-
         if (currentTool == Tool.ERASER) {
-            color = Color.WHITE;
-            g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+            g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,1f));
+            g2d.setColor(Color.WHITE);
         } else {
-            color = rightButton ? secondaryColor : primaryColor;
             g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
+            g2d.setColor(SwingUtilities.isRightMouseButton(e) ? secondaryColor : primaryColor);
         }
-        g2d.setColor(color);
     }
 
-    private void saveUndoSnapshot() {
+    private void floodFill(int sx, int sy, Color fillColor) {
+        if (sx < 0 || sy < 0 || sx >= image.getWidth() || sy >= image.getHeight()) return;
+        int targetRGB = image.getRGB(sx, sy);
+        int fillRGB   = fillColor.getRGB();
+        if (targetRGB == fillRGB) return;
+        int w = image.getWidth();
+        int h = image.getHeight();
+        Queue<Integer> queue = new LinkedList<>();
+        queue.add((sy << 16) | sx);
+        int[] dx = { 1, -1, 0,  0 };
+        int[] dy = { 0,  0, 1, -1 };
+        while (!queue.isEmpty()) {
+            int packed = queue.poll();
+            int cy = packed >> 16;
+            int cx = packed & 0xFFFF;
+            for (int i = 0; i < 4; i++) {
+                int nx = cx + dx[i];
+                int ny = cy + dy[i];
+                if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                if (image.getRGB(nx, ny) != targetRGB) continue;
+                image.setRGB(nx, ny, fillRGB);
+                queue.add((ny << 16) | nx);
+            }
+        }
+        repaint();
+    }
+
+    private void saveSnapshot() {
         undoStack.push(copyImage(image));
         redoStack.clear();
-        // Trim history
         while (undoStack.size() > maxUndoSteps) {
             ((ArrayDeque<BufferedImage>) undoStack).removeLast();
         }
@@ -174,9 +264,7 @@ public class CanvasPanel extends JPanel {
 
     private BufferedImage copyImage(BufferedImage src) {
         BufferedImage copy = new BufferedImage(src.getWidth(), src.getHeight(), src.getType());
-        Graphics2D cg = copy.createGraphics();
-        cg.drawImage(src, 0, 0, null);
-        cg.dispose();
+        copy.createGraphics().drawImage(src, 0, 0, null);
         return copy;
     }
 
@@ -185,7 +273,7 @@ public class CanvasPanel extends JPanel {
     }
 
     public void clearCanvas() {
-        saveUndoSnapshot();
+        saveSnapshot();
         g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
         g2d.setColor(Color.WHITE);
         g2d.fillRect(0, 0, image.getWidth(), image.getHeight());
@@ -202,17 +290,17 @@ public class CanvasPanel extends JPanel {
     }
 
     public void zoomIn()    {
-        zoomFactor = Math.min(zoomFactor + 0.25, 8.0); updateZoom();
+        zoomFactor = Math.min(zoomFactor + 0.25, 8.0);
+        applyZoom();
     }
 
     public void resetZoom() {
-        zoomFactor = 1.0; updateZoom();
+        zoomFactor = 1.0;
+        applyZoom();
     }
 
-    private void updateZoom() {
-        int w = (int)(image.getWidth()  * zoomFactor);
-        int h = (int)(image.getHeight() * zoomFactor);
-        setPreferredSize(new Dimension(w, h));
+    private void applyZoom() {
+        setPreferredSize(new Dimension((int)(image.getWidth()  * zoomFactor), (int)(image.getHeight() * zoomFactor)));
         revalidate();
         repaint();
     }

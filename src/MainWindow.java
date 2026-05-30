@@ -23,26 +23,24 @@ public class MainWindow extends JFrame{
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setSize(1100, 750);
         setLocationRelativeTo(null);
-        setJMenuBar(buildMenuBar());
-
-        canvas = new CanvasPanel(800,600);
+        canvas = new CanvasPanel(800, 600);
         toolPanel = new ToolPanel(canvas);
         statusBar = new StatusBar();
-
         JScrollPane scrollPane = new JScrollPane(canvas);
         scrollPane.getViewport().setBackground(new Color(180, 180, 180));
+        canvas.setScrollPane(scrollPane);
+        add(toolPanel,  BorderLayout.WEST);
+        add(scrollPane, BorderLayout.CENTER);
+        add(statusBar,  BorderLayout.SOUTH);
+        setJMenuBar(buildMenuBar());
         statusBar.attachMouseTracking(canvas);
         statusBar.setCanvasSize(800, 600);
         registerKeyboardShortcuts();
         addWindowListener(new WindowAdapter() {
-            public void windowClosing(WindowEvent e) {
+            @Override public void windowClosing(WindowEvent e) {
                 confirmAndExit();
             }
         });
-
-        add(toolPanel,  BorderLayout.WEST);
-        add(scrollPane, BorderLayout.CENTER);
-        add(statusBar,  BorderLayout.SOUTH);
     }
 
     private JMenuBar buildMenuBar() {
@@ -164,14 +162,11 @@ public class MainWindow extends JFrame{
             try {
                 BufferedImage loaded = ImageIO.read(file);
                 if (loaded == null) throw new IOException("Unsupported format");
-
-                // Resize canvas to match loaded image
                 canvas.resizeCanvas(loaded.getWidth(), loaded.getHeight());
                 Graphics2D g = canvas.getImage().createGraphics();
                 g.drawImage(loaded, 0, 0, null);
                 g.dispose();
                 canvas.repaint();
-
                 currentFile = file;
                 modified    = false;
                 statusBar.setCanvasSize(loaded.getWidth(), loaded.getHeight());
@@ -192,12 +187,9 @@ public class MainWindow extends JFrame{
     private void openSettings() {
         SettingsDialog dlg = new SettingsDialog(this, canvas);
         dlg.setVisible(true);
-
         if (dlg.isConfirmed()) {
             int w = dlg.getCanvasWidth();
             int h = dlg.getCanvasHeight();
-
-            // Only resize if dimensions changed
             if (w != canvas.getImage().getWidth() || h != canvas.getImage().getHeight()) {
                 int choice = JOptionPane.showConfirmDialog(this,
                         "Resizing the canvas will clear all artwork. Continue?",
@@ -207,11 +199,8 @@ public class MainWindow extends JFrame{
                     statusBar.setCanvasSize(w, h);
                 }
             }
-
             canvas.setMaxUndoSteps(dlg.getMaxUndoSteps());
             canvas.setBrushSize(dlg.getDefaultBrushSize());
-
-            // Apply theme
             String theme = dlg.getTheme();
             applyTheme(theme);
         }
@@ -221,15 +210,15 @@ public class MainWindow extends JFrame{
         try {
             if ("Dark".equals(theme)) {
                 UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel");
-                UIManager.put("control",        new Color(60,  63,  65));
-                UIManager.put("text",           Color.WHITE);
-                UIManager.put("nimbusBase",     new Color(43,  43,  43));
+                UIManager.put("control", new Color(60,  63,  65));
+                UIManager.put("text", Color.WHITE);
+                UIManager.put("nimbusBase", new Color(43,  43,  43));
                 UIManager.put("nimbusBlueGrey", new Color(60,  63,  65));
             } else {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
             }
             SwingUtilities.updateComponentTreeUI(this);
-        } catch (Exception ignored) { /* theme errors are non-critical */ }
+        } catch (Exception ignored) {}
     }
 
     private void registerKeyboardShortcuts() {
@@ -249,9 +238,7 @@ public class MainWindow extends JFrame{
 
     private boolean confirmDiscardChanges() {
         if (!modified) return true;
-        int choice = JOptionPane.showConfirmDialog(this,
-                "You have unsaved changes. Discard them?",
-                "Unsaved Changes", JOptionPane.YES_NO_OPTION);
+        int choice = JOptionPane.showConfirmDialog(this, "You have unsaved changes. Discard them?", "Unsaved Changes", JOptionPane.YES_NO_OPTION);
         return choice == JOptionPane.YES_OPTION;
     }
 
@@ -261,7 +248,7 @@ public class MainWindow extends JFrame{
 
     private void updateTitle() {
         String name = currentFile == null ? "Untitled" : currentFile.getName();
-        setTitle("PaintApp – " + name + (modified ? " *" : ""));
+        setTitle("PixelPaint – " + name + (modified ? " *" : ""));
     }
 
 }
