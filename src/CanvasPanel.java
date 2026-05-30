@@ -45,14 +45,15 @@ public class CanvasPanel extends JPanel {
 
     private void initImage(int w, int h) {
         image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        g2d   = createG2D(image);
+        g2d = createG2D(image);
         g2d.setColor(Color.WHITE);
         g2d.fillRect(0, 0, w, h);
     }
 
     private Graphics2D createG2D(BufferedImage img) {
         Graphics2D g = img.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
         return g;
     }
 
@@ -98,28 +99,26 @@ public class CanvasPanel extends JPanel {
                     setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
                     return;
                 }
-
                 int x = screenToCanvas(e.getX());
                 int y = screenToCanvas(e.getY());
-                lastX = x;
-                lastY = y;
-                startX = x;
-                startY = y;
-                if (currentTool == Tool.LINE || currentTool == Tool.CIRCLE || currentTool == Tool.RECTANGLE) {
+                lastX = x; lastY = y;
+                startX = x; startY = y;
+                if (currentTool == Tool.LINE|| currentTool == Tool.CIRCLE|| currentTool == Tool.RECTANGLE) {
                     shapeScratch = copyImage(image);
-                } else if (currentTool == Tool.FILL){
+                } else if (currentTool == Tool.FILL) {
                     Color fc = SwingUtilities.isRightMouseButton(e) ? secondaryColor : primaryColor;
                     saveSnapshot();
+                    floodFill(x, y, fc);
                 } else {
                     saveSnapshot();
                     drawPoint(x, y, e);
-                    repaint();
+                    paintImmediately(0, 0, getWidth(), getHeight());
                 }
             }
 
             @Override public void mouseDragged(MouseEvent e) {
                 if (panActive) {
-                    if (scrollPane != null){
+                    if (scrollPane != null) {
                         int dx = e.getXOnScreen() - panAnchorX;
                         int dy = e.getYOnScreen() - panAnchorY;
                         scrollPane.getHorizontalScrollBar().setValue(panScrollX - dx);
@@ -133,7 +132,9 @@ public class CanvasPanel extends JPanel {
                     case BRUSH:
                     case ERASER:
                         drawLine(lastX, lastY, x, y, e);
-                        lastX = x; lastY = y;
+                        lastX = x;
+                        lastY = y;
+                        paintImmediately(0, 0, getWidth(), getHeight());
                         break;
                     case LINE:
                     case RECTANGLE:
@@ -212,13 +213,15 @@ public class CanvasPanel extends JPanel {
     }
 
     private void floodFill(int sx, int sy, Color fillColor) {
-        if (sx < 0 || sy < 0 || sx >= image.getWidth() || sy >= image.getHeight()) return;
+        int w = image.getWidth();
+        int h = image.getHeight();
+        if (sx < 0 || sy < 0 || sx >= w || sy >= h) return;
         int targetRGB = image.getRGB(sx, sy);
         int fillRGB   = fillColor.getRGB();
         if (targetRGB == fillRGB) return;
-        int w = image.getWidth();
-        int h = image.getHeight();
+        boolean[][] visited = new boolean[h][w];
         Queue<Integer> queue = new LinkedList<>();
+        visited[sy][sx] = true;
         queue.add((sy << 16) | sx);
         int[] dx = { 1, -1, 0,  0 };
         int[] dy = { 0,  0, 1, -1 };
@@ -226,12 +229,14 @@ public class CanvasPanel extends JPanel {
             int packed = queue.poll();
             int cy = packed >> 16;
             int cx = packed & 0xFFFF;
+            image.setRGB(cx, cy, fillRGB);
             for (int i = 0; i < 4; i++) {
                 int nx = cx + dx[i];
                 int ny = cy + dy[i];
                 if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                if (visited[ny][nx]) continue;
                 if (image.getRGB(nx, ny) != targetRGB) continue;
-                image.setRGB(nx, ny, fillRGB);
+                visited[ny][nx] = true;
                 queue.add((ny << 16) | nx);
             }
         }
@@ -264,12 +269,17 @@ public class CanvasPanel extends JPanel {
 
     private BufferedImage copyImage(BufferedImage src) {
         BufferedImage copy = new BufferedImage(src.getWidth(), src.getHeight(), src.getType());
-        copy.createGraphics().drawImage(src, 0, 0, null);
+        Graphics2D cg = copy.createGraphics();
+        cg.drawImage(src, 0, 0, null);
+        cg.dispose();
         return copy;
     }
 
     private void restoreImage(BufferedImage saved) {
+        Composite prev = g2d.getComposite();
+        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC, 1f));
         g2d.drawImage(saved, 0, 0, null);
+        g2d.setComposite(prev);
     }
 
     public void clearCanvas() {
@@ -314,9 +324,9 @@ public class CanvasPanel extends JPanel {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        int w = (int)(image.getWidth()  * zoomFactor);
-        int h = (int)(image.getHeight() * zoomFactor);
-        g.drawImage(image, 0, 0, w, h, null);
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        g2.drawImage(image, 0, 0, (int)(image.getWidth()  * zoomFactor), (int)(image.getHeight() * zoomFactor), null);
     }
 
     public BufferedImage getImage(){
