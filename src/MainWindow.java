@@ -15,7 +15,7 @@ public class MainWindow extends JFrame {
     private boolean modified = false;
 
     public MainWindow() {
-        setTitle("PaintApp");
+        setTitle("PixelPaint");
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setSize(1100, 750);
         setLocationRelativeTo(null);
