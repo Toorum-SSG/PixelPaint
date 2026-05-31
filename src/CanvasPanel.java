@@ -3,6 +3,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
+import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -13,44 +14,52 @@ public class CanvasPanel extends JPanel {
     private final Deque<BufferedImage> undoStack = new ArrayDeque<>();
     private final Deque<BufferedImage> redoStack = new ArrayDeque<>();
     private int maxUndoSteps = 30;
-    private Tool currentTool = Tool.BRUSH;
+    private Tool  currentTool = Tool.BRUSH;
     private Color primaryColor = Color.BLACK;
     private Color secondaryColor = Color.WHITE;
-    private int brushSize = 10;
+    private int   brushSize = 10;
     private float opacity = 1.0f;
     private double zoomFactor = 1.0;
-    private static final double ZOOM_MIN = 0.1;
-    private static final double ZOOM_MAX = 16.0;
+    private static final double ZOOM_MIN  = 0.1;
+    private static final double ZOOM_MAX  = 16.0;
     private static final double ZOOM_STEP = 0.12;
     private JScrollPane scrollPane;
-    private boolean fill = false;
+    private StatusBar statusBar;
     private int lastX, lastY;
     private int startX, startY;
     private BufferedImage shapeScratch;
     private boolean panActive = false;
     private int panAnchorX, panAnchorY;
     private int panScrollX, panScrollY;
-
     public CanvasPanel(int width, int height) {
         setBackground(Color.LIGHT_GRAY);
         setPreferredSize(new Dimension(width, height));
         initImage(width, height);
-        addDravingListeners();
+        addDrawingListeners();
         addZoomListener();
     }
 
-    public void setScrollPane(JScrollPane sp){
+    public void setScrollPane(JScrollPane sp) {
         this.scrollPane = sp;
     }
 
+    public void setStatusBar(StatusBar sb) {
+        this.statusBar = sb;
+    }
+
+    private void notifyStatusBar() {
+        if (statusBar != null)
+            statusBar.update(this);
+    }
+
     private void initImage(int w, int h) {
-        image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        g2d = createG2D(image);
+        image = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        g2d = makeG2D(image);
         g2d.setColor(Color.WHITE);
         g2d.fillRect(0, 0, w, h);
     }
 
-    private Graphics2D createG2D(BufferedImage img) {
+    private Graphics2D makeG2D(BufferedImage img) {
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
@@ -59,13 +68,15 @@ public class CanvasPanel extends JPanel {
 
     private void addZoomListener() {
         addMouseWheelListener(e -> {
-            if (!e.isControlDown()) return;
+            if (!e.isControlDown())
+                return;
             int mouseX = e.getX();
             int mouseY = e.getY();
             double imgX = mouseX / zoomFactor;
             double imgY = mouseY / zoomFactor;
             double delta = -e.getPreciseWheelRotation() * ZOOM_STEP;
             zoomFactor = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomFactor + delta));
+
             int newW = (int)(image.getWidth()  * zoomFactor);
             int newH = (int)(image.getHeight() * zoomFactor);
             setPreferredSize(new Dimension(newW, newH));
@@ -79,11 +90,11 @@ public class CanvasPanel extends JPanel {
                 scrollPane.getVerticalScrollBar().setValue(scrollY);
             }
             repaint();
+            notifyStatusBar();
         });
     }
 
-
-    private void addDravingListeners() {
+    private void addDrawingListeners() {
         MouseAdapter adapter = new MouseAdapter() {
 
             @Override
@@ -99,11 +110,13 @@ public class CanvasPanel extends JPanel {
                     setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
                     return;
                 }
-                int x = screenToCanvas(e.getX());
-                int y = screenToCanvas(e.getY());
-                lastX = x; lastY = y;
-                startX = x; startY = y;
-                if (currentTool == Tool.LINE|| currentTool == Tool.CIRCLE|| currentTool == Tool.RECTANGLE) {
+                int x = toCanvas(e.getX());
+                int y = toCanvas(e.getY());
+                lastX = x;
+                lastY = y;
+                startX = x;
+                startY = y;
+                if (currentTool == Tool.LINE || currentTool == Tool.CIRCLE || currentTool == Tool.RECTANGLE) {
                     shapeScratch = copyImage(image);
                 } else if (currentTool == Tool.FILL) {
                     Color fc = SwingUtilities.isRightMouseButton(e) ? secondaryColor : primaryColor;
@@ -111,12 +124,13 @@ public class CanvasPanel extends JPanel {
                     floodFill(x, y, fc);
                 } else {
                     saveSnapshot();
-                    drawPoint(x, y, e);
+                    drawDot(x, y, e);
                     paintImmediately(0, 0, getWidth(), getHeight());
                 }
             }
 
-            @Override public void mouseDragged(MouseEvent e) {
+            @Override
+            public void mouseDragged(MouseEvent e) {
                 if (panActive) {
                     if (scrollPane != null) {
                         int dx = e.getXOnScreen() - panAnchorX;
@@ -126,12 +140,12 @@ public class CanvasPanel extends JPanel {
                     }
                     return;
                 }
-                int x = screenToCanvas(e.getX());
-                int y = screenToCanvas(e.getY());
+                int x = toCanvas(e.getX());
+                int y = toCanvas(e.getY());
                 switch (currentTool) {
                     case BRUSH:
                     case ERASER:
-                        drawLine(lastX, lastY, x, y, e);
+                        drawStroke(lastX, lastY, x, y, e);
                         lastX = x;
                         lastY = y;
                         paintImmediately(0, 0, getWidth(), getHeight());
@@ -150,14 +164,15 @@ public class CanvasPanel extends JPanel {
 
             @Override
             public void mouseReleased(MouseEvent e) {
-                if (panActive && SwingUtilities.isMiddleMouseButton(e)){
+                if (panActive && SwingUtilities.isMiddleMouseButton(e)) {
                     panActive = false;
                     setCursor(Cursor.getDefaultCursor());
                     return;
                 }
+
                 if (currentTool == Tool.LINE || currentTool == Tool.CIRCLE || currentTool == Tool.RECTANGLE) {
-                    int x = screenToCanvas(e.getX());
-                    int y = screenToCanvas(e.getY());
+                    int x = toCanvas(e.getX());
+                    int y = toCanvas(e.getY());
                     saveSnapshot();
                     restoreImage(shapeScratch);
                     drawShape(startX, startY, x, y, e);
@@ -166,29 +181,26 @@ public class CanvasPanel extends JPanel {
                 }
             }
         };
-
         addMouseListener(adapter);
         addMouseMotionListener(adapter);
     }
 
-    private void drawPoint(int x, int y, MouseEvent e) {
-        setupG2D(e);
+    private void drawDot(int x, int y, MouseEvent e) {
+        configureG2D(e);
         g2d.fillOval(x - brushSize / 2, y - brushSize / 2, brushSize, brushSize);
     }
 
-    private void drawLine(int x1, int y1, int x2, int y2, MouseEvent e) {
-        setupG2D(e);
+    private void drawStroke(int x1, int y1, int x2, int y2, MouseEvent e) {
+        configureG2D(e);
         g2d.setStroke(new BasicStroke(brushSize, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         g2d.drawLine(x1, y1, x2, y2);
     }
 
     private void drawShape(int x1, int y1, int x2, int y2, MouseEvent e) {
-        setupG2D(e);
+        configureG2D(e);
         g2d.setStroke(new BasicStroke(brushSize));
-        int x = Math.min(x1, x2);
-        int y = Math.min(y1, y2);
-        int w = Math.abs(x2 - x1);
-        int h = Math.abs(y2 - y1);
+        int x = Math.min(x1, x2),  y = Math.min(y1, y2);
+        int w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
         switch (currentTool) {
             case LINE:
                 g2d.drawLine(x1, y1, x2, y2);
@@ -202,9 +214,9 @@ public class CanvasPanel extends JPanel {
         }
     }
 
-    private void setupG2D(MouseEvent e) {
+    private void configureG2D(MouseEvent e) {
         if (currentTool == Tool.ERASER) {
-            g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,1f));
+            g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
             g2d.setColor(Color.WHITE);
         } else {
             g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, opacity));
@@ -246,25 +258,32 @@ public class CanvasPanel extends JPanel {
     private void saveSnapshot() {
         undoStack.push(copyImage(image));
         redoStack.clear();
-        while (undoStack.size() > maxUndoSteps) {
+        while (undoStack.size() > maxUndoSteps)
             ((ArrayDeque<BufferedImage>) undoStack).removeLast();
-        }
+        notifyStatusBar();
     }
 
     public void undo() {
-        if (!undoStack.isEmpty()) {
-            redoStack.push(copyImage(image));
-            restoreImage(undoStack.pop());
-            repaint();
-        }
+        if (undoStack.isEmpty()) return;
+        redoStack.push(copyImage(image));
+        restoreImage(undoStack.pop());
+        repaint();
+        notifyStatusBar();
     }
 
     public void redo() {
-        if (!redoStack.isEmpty()) {
-            undoStack.push(copyImage(image));
-            restoreImage(redoStack.pop());
-            repaint();
-        }
+        if (redoStack.isEmpty()) return;
+        undoStack.push(copyImage(image));
+        restoreImage(redoStack.pop());
+        repaint();
+        notifyStatusBar();
+    }
+
+    private void restoreImage(BufferedImage saved) {
+        Composite prev = g2d.getComposite();
+        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC, 1f));
+        g2d.drawImage(saved, 0, 0, null);
+        g2d.setComposite(prev);
     }
 
     private BufferedImage copyImage(BufferedImage src) {
@@ -275,16 +294,9 @@ public class CanvasPanel extends JPanel {
         return copy;
     }
 
-    private void restoreImage(BufferedImage saved) {
-        Composite prev = g2d.getComposite();
-        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC, 1f));
-        g2d.drawImage(saved, 0, 0, null);
-        g2d.setComposite(prev);
-    }
-
     public void clearCanvas() {
         saveSnapshot();
-        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
         g2d.setColor(Color.WHITE);
         g2d.fillRect(0, 0, image.getWidth(), image.getHeight());
         repaint();
@@ -297,10 +309,11 @@ public class CanvasPanel extends JPanel {
         setPreferredSize(new Dimension(w, h));
         revalidate();
         repaint();
+        notifyStatusBar();
     }
 
-    public void zoomIn()    {
-        zoomFactor = Math.min(zoomFactor + 0.25, 8.0);
+    public void zoomIn() {
+        zoomFactor = Math.min(zoomFactor + 0.25, ZOOM_MAX);
         applyZoom();
     }
 
@@ -313,46 +326,58 @@ public class CanvasPanel extends JPanel {
         setPreferredSize(new Dimension((int)(image.getWidth()  * zoomFactor), (int)(image.getHeight() * zoomFactor)));
         revalidate();
         repaint();
+        notifyStatusBar();
     }
 
-    private int screenToCanvas(int screenCoord) {
-        return (int)(screenCoord / zoomFactor);
+    private int toCanvas(int screenCoord) {
+        return (int) (screenCoord / zoomFactor);
     }
-
-    public double getZoomFactor() { return zoomFactor; }
 
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        g2.drawImage(image, 0, 0, (int)(image.getWidth()  * zoomFactor), (int)(image.getHeight() * zoomFactor), null);
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        g2.drawImage(image, 0, 0, (int)(image.getWidth()  * zoomFactor), (int)(image.getHeight() * zoomFactor),null);
     }
 
-    public BufferedImage getImage(){
+    public boolean hasUndo() {
+        return !undoStack.isEmpty();
+    }
+
+    public boolean hasRedo() {
+        return !redoStack.isEmpty();
+    }
+
+    public BufferedImage getImage() {
         return image;
     }
-    public Color getPrimaryColor(){
+
+    public double  getZoomFactor() {
+        return zoomFactor;
+    }
+
+    public Color   getPrimaryColor() {
         return primaryColor;
     }
 
-    public Color getSecondaryColor(){
+    public Color   getSecondaryColor() {
         return secondaryColor;
     }
 
-    public void setPrimaryColor(Color c){
+    public void    setPrimaryColor(Color c) {
         primaryColor = c;
     }
 
-    public void setSecondaryColor(Color c){
+    public void setSecondaryColor(Color c) {
         secondaryColor = c;
     }
 
-    public int getBrushSize(){
+    public int getBrushSize() {
         return brushSize;
     }
 
-    public void setBrushSize(int s){
+    public void setBrushSize(int s) {
         brushSize = s;
     }
 
@@ -360,28 +385,18 @@ public class CanvasPanel extends JPanel {
         return opacity;
     }
 
-    public void setOpacity(float o){
+    public void setOpacity(float o) {
         opacity = o;
     }
 
-    public boolean isFill(){
-        return fill;
-    }
-
-    public void setFill(boolean f){
-        fill = f;
-    }
-
-    public Tool getCurrentTool(){
+    public Tool getCurrentTool() {
         return currentTool;
     }
 
     public void setCurrentTool(Tool t) {
         currentTool = t;
     }
-
-    public void setMaxUndoSteps(int s){
+    public void setMaxUndoSteps(int s) {
         maxUndoSteps = s;
     }
-
 }
