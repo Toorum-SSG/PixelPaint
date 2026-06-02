@@ -195,6 +195,7 @@ public class MainWindow extends JFrame {
         }
     }
 
+    //applies selected theme
     private void applyTheme(String theme) {
         try {
             if ("Dark".equals(theme)) {
@@ -210,6 +211,7 @@ public class MainWindow extends JFrame {
         } catch (Exception ignored) {}
     }
 
+    //tool binds
     private void registerKeyboardShortcuts() {
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(e -> {
             if (e.getID() != KeyEvent.KEY_PRESSED) return false;

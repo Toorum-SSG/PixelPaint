@@ -8,6 +8,22 @@ import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Queue;
 
+/**
+ * Main drawing canvas of the application.
+ *
+ * Responsibilities:
+ * - Stores and renders the current image.
+ * - Handles mouse input for drawing operations.
+ * - Supports multiple drawing tools (brush, eraser, line, rectangle,
+ *   circle and fill tool).
+ * - Provides zooming and canvas panning.
+ * - Maintains undo/redo history.
+ * - Notifies the status bar about canvas state changes.
+ *
+ * The canvas internally stores all drawing data inside a BufferedImage.
+ * User actions modify this image directly and the panel simply renders
+ * the image at the current zoom level.
+ */
 public class CanvasPanel extends JPanel {
     private BufferedImage image;
     private Graphics2D g2d;
@@ -31,6 +47,16 @@ public class CanvasPanel extends JPanel {
     private boolean panActive = false;
     private int panAnchorX, panAnchorY;
     private int panScrollX, panScrollY;
+
+    /**
+     * Creates a new drawing canvas.
+     *
+     * Initializes the internal image buffer,
+     * registers mouse listeners and zoom controls.
+     *
+     * @param width  Initial canvas width in pixels.
+     * @param height Initial canvas height in pixels.
+     */
     public CanvasPanel(int width, int height) {
         setBackground(Color.LIGHT_GRAY);
         setPreferredSize(new Dimension(width, height));
@@ -52,6 +78,12 @@ public class CanvasPanel extends JPanel {
             statusBar.update(this);
     }
 
+    /**
+     * Creates a new blank image and fills it with white color.
+     *
+     * This method is used during startup and whenever
+     * the canvas is resized.
+     */
     private void initImage(int w, int h) {
         image = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
         g2d = makeG2D(image);
@@ -66,6 +98,15 @@ public class CanvasPanel extends JPanel {
         return g;
     }
 
+    /**
+     * Handles Ctrl + Mouse Wheel zooming.
+     *
+     * Zooming is centered around the current mouse position
+     * so the user keeps focus on the same image area.
+     *
+     * The scrollbars are automatically adjusted after
+     * each zoom operation.
+     */
     private void addZoomListener() {
         addMouseWheelListener(e -> {
             if (!e.isControlDown())
@@ -94,6 +135,16 @@ public class CanvasPanel extends JPanel {
         });
     }
 
+    /**
+     * Registers all mouse interactions used by the canvas.
+     *
+     * Supported actions:
+     * - Left/Right click drawing
+     * - Shape preview while dragging
+     * - Flood fill
+     * - Canvas panning with middle mouse button
+     * - Shape finalization on mouse release
+     */
     private void addDrawingListeners() {
         MouseAdapter adapter = new MouseAdapter() {
 
@@ -185,17 +236,40 @@ public class CanvasPanel extends JPanel {
         addMouseMotionListener(adapter);
     }
 
+    /**
+     * Draws a single brush imprint.
+     *
+     * Used when the user clicks without dragging.
+     */
     private void drawDot(int x, int y, MouseEvent e) {
         configureG2D(e);
         g2d.fillOval(x - brushSize / 2, y - brushSize / 2, brushSize, brushSize);
     }
 
+    /**
+     * Draws a continuous stroke between two points.
+     *
+     * Called repeatedly while the mouse is being dragged
+     * to create smooth freehand drawing.
+     */
     private void drawStroke(int x1, int y1, int x2, int y2, MouseEvent e) {
         configureG2D(e);
         g2d.setStroke(new BasicStroke(brushSize, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         g2d.drawLine(x1, y1, x2, y2);
     }
 
+    /**
+     * Draws the currently selected geometric shape.
+     *
+     * Supported shapes:
+     * - Line
+     * - Rectangle
+     * - Ellipse/Circle
+     *
+     * During dragging, shapes are rendered on a temporary
+     * preview image so the user can see the final result
+     * before releasing the mouse button.
+     */
     private void drawShape(int x1, int y1, int x2, int y2, MouseEvent e) {
         configureG2D(e);
         g2d.setStroke(new BasicStroke(brushSize));
@@ -214,6 +288,17 @@ public class CanvasPanel extends JPanel {
         }
     }
 
+    /**
+     * Configures drawing settings before rendering.
+     *
+     * Sets:
+     * - Active color
+     * - Opacity
+     * - Eraser behavior
+     *
+     * Right mouse button uses the secondary color.
+     * Left mouse button uses the primary color.
+     */
     private void configureG2D(MouseEvent e) {
         if (currentTool == Tool.ERASER) {
             g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
@@ -224,6 +309,16 @@ public class CanvasPanel extends JPanel {
         }
     }
 
+    /**
+     * Performs a flood fill operation using a queue-based
+     * breadth-first search (BFS) algorithm.
+     *
+     * Starting from the clicked pixel, all connected pixels
+     * with the same color are replaced by the selected color.
+     *
+     * This implementation avoids recursion and therefore
+     * prevents stack overflow on large areas.
+     */
     private void floodFill(int sx, int sy, Color fillColor) {
         int w = image.getWidth();
         int h = image.getHeight();
@@ -255,6 +350,14 @@ public class CanvasPanel extends JPanel {
         repaint();
     }
 
+    /**
+     * Saves the current canvas state into the undo history.
+     *
+     * Called before any operation that modifies the image.
+     *
+     * Redo history is cleared because a new user action
+     * creates a new branch of edits.
+     */
     private void saveSnapshot() {
         undoStack.push(copyImage(image));
         redoStack.clear();
@@ -263,6 +366,12 @@ public class CanvasPanel extends JPanel {
         notifyStatusBar();
     }
 
+    /**
+     * Restores the previous canvas state.
+     *
+     * The current image is pushed into the redo stack
+     * before the previous state is restored.
+     */
     public void undo() {
         if (undoStack.isEmpty()) return;
         redoStack.push(copyImage(image));
@@ -271,6 +380,12 @@ public class CanvasPanel extends JPanel {
         notifyStatusBar();
     }
 
+    /**
+     * Restores the most recently undone action.
+     *
+     * The current state is stored in the undo stack
+     * before the redo state is applied.
+     */
     public void redo() {
         if (redoStack.isEmpty()) return;
         undoStack.push(copyImage(image));
@@ -279,6 +394,12 @@ public class CanvasPanel extends JPanel {
         notifyStatusBar();
     }
 
+    /**
+     * Replaces the current image content with a previously
+     * saved snapshot.
+     *
+     * Used by shape previews and undo/redo operations.
+     */
     private void restoreImage(BufferedImage saved) {
         Composite prev = g2d.getComposite();
         g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC, 1f));
@@ -294,6 +415,12 @@ public class CanvasPanel extends JPanel {
         return copy;
     }
 
+    /**
+     * Clears the entire canvas by filling it with white color.
+     *
+     * The previous state is stored so the action can
+     * be undone later.
+     */
     public void clearCanvas() {
         saveSnapshot();
         g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
@@ -302,6 +429,12 @@ public class CanvasPanel extends JPanel {
         repaint();
     }
 
+    /**
+     * Creates a completely new canvas with the specified size.
+     *
+     * Existing undo/redo history is removed because the old
+     * snapshots may no longer match the new dimensions.
+     */
     public void resizeCanvas(int w, int h) {
         undoStack.clear();
         redoStack.clear();
@@ -322,6 +455,12 @@ public class CanvasPanel extends JPanel {
         applyZoom();
     }
 
+    /**
+     * Applies the current zoom factor.
+     *
+     * Updates component dimensions and forces the panel
+     * to recalculate its layout and repaint itself.
+     */
     private void applyZoom() {
         setPreferredSize(new Dimension((int)(image.getWidth()  * zoomFactor), (int)(image.getHeight() * zoomFactor)));
         revalidate();
@@ -333,6 +472,13 @@ public class CanvasPanel extends JPanel {
         return (int) (screenCoord / zoomFactor);
     }
 
+    /**
+     * Renders the canvas image on screen.
+     *
+     * The image is scaled according to the current zoom level.
+     * Nearest-neighbor interpolation is used to keep pixels
+     * sharp when zooming.
+     */
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -396,6 +542,7 @@ public class CanvasPanel extends JPanel {
     public void setCurrentTool(Tool t) {
         currentTool = t;
     }
+
     public void setMaxUndoSteps(int s) {
         maxUndoSteps = s;
     }

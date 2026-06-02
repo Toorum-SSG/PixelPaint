@@ -42,6 +42,7 @@ public class ToolPanel extends JPanel {
         return btn;
     }
 
+    //creates tool chooser buttons
     private JPanel buildToolButtons() {
         JPanel panel = new JPanel(new GridLayout(4, 2, 2, 2));
         panel.setBorder(BorderFactory.createTitledBorder("Tools"));
@@ -65,6 +66,7 @@ public class ToolPanel extends JPanel {
         return panel;
     }
 
+    //creates slider for brush size
     private JPanel buildSizeSlider(){
         JPanel p = new JPanel();
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
@@ -86,6 +88,7 @@ public class ToolPanel extends JPanel {
         return p;
     }
 
+    //creates quick color chooser
     private JPanel buildPalette() {
         JPanel panel = new JPanel(new GridLayout(5, 4, 2, 2));
         panel.setBorder(BorderFactory.createTitledBorder("Colour"));
@@ -114,6 +117,7 @@ public class ToolPanel extends JPanel {
         return panel;
     }
 
+    //shows current selected colors
     private JPanel buildColorDisplay() {
         JPanel outer = new JPanel(null);
         outer.setOpaque(false);
@@ -133,6 +137,7 @@ public class ToolPanel extends JPanel {
         return outer;
     }
 
+    //renders color chooser
     private JLabel colorSwatch(Color c, boolean primary) {
         JLabel lbl = new JLabel();
         lbl.setBackground(c);
@@ -159,6 +164,7 @@ public class ToolPanel extends JPanel {
         secondarySwatch.setBackground(canvas.getSecondaryColor());
     }
 
+    //Builds the slider for brush opacity
     private JPanel buildOpacitySlider() {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));

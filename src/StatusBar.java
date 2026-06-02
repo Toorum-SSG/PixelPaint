@@ -43,6 +43,7 @@ public class StatusBar extends JPanel {
         return sep;
     }
 
+    //sets current X and Y positions stored
     private void updatePosition(MouseEvent e, CanvasPanel canvas) {
         int x = (int)(e.getX() / canvas.getZoomFactor());
         int y = (int)(e.getY() / canvas.getZoomFactor());
@@ -63,6 +64,7 @@ public class StatusBar extends JPanel {
         zoomLabel.setText(String.format("Zoom: %.0f%%", factor * 100));
     }
 
+    //tracks mouse for its X and Y positions
     public void attachMouseTracking(CanvasPanel canvas) {
 
         MouseMotionAdapter adapter = new MouseMotionAdapter() {
@@ -79,6 +81,7 @@ public class StatusBar extends JPanel {
         canvas.addMouseMotionListener(adapter);
     }
 
+    //updates the status of status bar parameters
     public void update(CanvasPanel canvas) {
         canvasLabel.setText("Canvas: " + canvas.getImage().getWidth() + "\u00d7" + canvas.getImage().getHeight());
         zoomLabel.setText(String.format("Zoom: %.0f%%", canvas.getZoomFactor() * 100));
