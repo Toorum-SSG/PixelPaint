@@ -1,4 +1,4 @@
-# 🎨 PaintApp
+# 🎨 PixelPaint
 
 Jednoduchá desktopová kreslící aplikace napsaná v čistém Javě (Swing).  
 Žádné externí knihovny – stačí JDK 11 nebo novější.
